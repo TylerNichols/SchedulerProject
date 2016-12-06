@@ -51,7 +51,7 @@ class System:
         self.readyqueue = Queue()
         self.waitqueue = Queue()
         self.completequeue = Queue()
-        self.run = Job();
+        self.run = None
 
 
     # make a job hold the Systems memory
@@ -73,6 +73,9 @@ class System:
     def release_devices(self, dvrl):
         self.availableDevices = self.availableDevices + dvrl
 
+    def set_running_job(self, job):
+        self.runningJob = job;
+
 
 # Class to represent a job
 class Job:
@@ -84,9 +87,20 @@ class Job:
         self.devices = devices
         self.runTime = runTime
 
+class Process:
+    def __init__(self, job):
+        self.job = job
+
+
+class DeviceRequest:
+    def __init__(self, devices):
+        self.devices = devices
+
 
 total_system = System(0, 0, 0, 0)
 time = 0
+quantumProgress = 0;
+interrupted = False
 
 
 # entry-point
@@ -197,10 +211,28 @@ def process_release(line):
 
 # processes updated IN PROGRESS
 def update_processes():
+    global total_system
+    if (time % total_system.quantum) == 0:
+        # Should update job here
+        print("quantum over, should update job to next job in queue")
+
+    # update running process
+    if total_system.run is not None:
+        currJob = total_system.run
+        currJob.time = currJob.time - 1
+        if currJob.time == 0:
+            print("done job")
+            total_system.run = None
+            total_system.completequeue.enqueue(currJob)
+            return
+
+        total_system.run = currJob
+
     print("processes updated")
 
 
 # checks queue IN PROGRESS
+# might be handled in update_processes
 def update_queues():
     global total_system
     print("queues checked")
@@ -226,7 +258,7 @@ def display_system(line):
 # belonging in its own index and in order
 def line_to_args(line):
     stringargs = (''.join(filter(lambda c: c.isdigit() or c == ' ', line))[1:]).split(" ")
-    intargs = map(int, stringargs)
+    intargs = list(map(int, stringargs))
     return intargs
 
 if __name__ == "__main__":
