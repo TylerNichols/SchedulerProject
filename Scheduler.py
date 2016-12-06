@@ -42,7 +42,9 @@ class System:
     def __init__(self, time, memory, devices, quantum):
         self.time = time
         self.memory = memory
+        self.availableMemory = memory;
         self.devices = devices
+        self.availableDevices = devices
         self.quantum = quantum
         self.holdqueue1 = Queue()
         self.holdqueue2 = Queue()
@@ -50,6 +52,26 @@ class System:
         self.waitqueue = Queue()
         self.completequeue = Queue()
         self.run = Job();
+
+
+    # make a job hold the Systems memory
+    def hold_memory(self, job):
+        self.availableMemory = self.availableMemory - job.memory
+
+
+    # make a job release the Systems memory
+    def release_memory(self, job):
+        self.availableMemory = self.availableMemory + job.memory
+
+
+    # hold devices from job device request
+    def hold_devices(self, dvrq):
+        self.availableDevices = self.availableDevices - dvrq
+
+
+    # hold devices from job device release
+    def release_devices(self, dvrl):
+        self.availableDevices = self.availableDevices + dvrl
 
 
 # Class to represent a job
@@ -150,6 +172,11 @@ def process_job_arrival(line):
     if (currentjob.devices > total_system.devices) or (currentjob.memory > total_system.memory):
         return
 
+    # if there is enough memory available to satisfy job req,
+    # then we simply add the job to the ready queue
+    elif (currentjob.memory < total_system.availableMemory):
+        total_system.readyqueue.enqueue(currentjob)
+
     # put priority 1 jobs in queue 1, priority 2 in queue 2
     elif currentjob.priority == "1":
         total_system.holdqueue1.enqueue(currentjob)
@@ -175,6 +202,7 @@ def update_processes():
 
 # checks queue IN PROGRESS
 def update_queues():
+    global total_system
     print("queues checked")
 
 
