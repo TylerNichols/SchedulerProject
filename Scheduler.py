@@ -49,6 +49,7 @@ class System:
         self.readyqueue = Queue()
         self.waitqueue = Queue()
         self.completequeue = Queue()
+        self.run = Job();
 
 
 # Class to represent a job
