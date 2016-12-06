@@ -1,6 +1,6 @@
 import sys
-import string
 import pprint
+
 
 # Class to handle queues
 class Queue:
@@ -50,6 +50,7 @@ class System:
         self.waitqueue = Queue()
         self.completequeue = Queue()
 
+
 # Class to represent a job
 class Job:
     def __init__(self, number, priority, arrivalTime, memory, devices, runTime):
@@ -60,11 +61,12 @@ class Job:
         self.devices = devices
         self.runTime = runTime
 
-total_system = System(0, 0, 0, 0)
 
+total_system = System(0, 0, 0, 0)
 time = 0
 
-# entrypoint
+
+# entry-point
 def main():
     global time
     # my code here
@@ -102,6 +104,7 @@ def process(line):
     else:
         print("line was invalid .... \"" + line + "\"")
 
+
 # checks and compares arrival times
 def tick(line):
     global time
@@ -113,7 +116,8 @@ def tick(line):
         else:
             tick_time(int(args[0])-time)
 
-##ticks time equal to time difference if first received
+
+# ticks time equal to time difference if first received
 def tick_start_time(timediff):
     global time
     print("ticking till system start time...")
@@ -121,7 +125,8 @@ def tick_start_time(timediff):
         time += 1
         print( time)
 
-#ticks time equal to time difference
+
+# ticks time equal to time difference
 def tick_time(timediff):
     global time
     for _ in range(timediff):
