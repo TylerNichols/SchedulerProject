@@ -96,8 +96,10 @@ def process(line):
             process_job_arrival(line)
         elif line[0] == 'Q':
             print("processing device request")
+            process_request(line)
         elif line[0] == 'L':
             print("processing device release")
+            process_release(line)
         elif line[0] == 'D':
             print("processing display")
             display_system(line)
@@ -133,7 +135,7 @@ def tick_time(timediff):
     for _ in range(timediff):
         time += 1
         update_processes()
-        check_queues()
+        update_queues()
         print(time)
 
 
@@ -145,7 +147,7 @@ def process_job_arrival(line):
 
     # Do not process jobs if they require more memory or devices than the system has
     if (currentjob.devices > total_system.devices) or (currentjob.memory > total_system.memory):
-        return;
+        return
 
     # put priority 1 jobs in queue 1, priority 2 in queue 2
     elif currentjob.priority == "1":
@@ -161,13 +163,17 @@ def process_request(line):
     print("request processed")
 
 
+def process_release(line):
+    print("release processed")
+
+
 # processes updated IN PROGRESS
 def update_processes():
     print("processes updated")
 
 
 # checks queue IN PROGRESS
-def check_queues():
+def update_queues():
     print("queues checked")
 
 
@@ -190,7 +196,9 @@ def display_system(line):
 # are just the arguments in numbers, each argument
 # belonging in its own index and in order
 def line_to_args(line):
-    return (''.join(filter(lambda c: c.isdigit() or c == ' ', line))[1:]).split(" ")
+    stringargs = (''.join(filter(lambda c: c.isdigit() or c == ' ', line))[1:]).split(" ")
+    intargs = map(int, stringargs)
+    return intargs
 
 if __name__ == "__main__":
     main()
