@@ -100,6 +100,7 @@ def process(line):
             print("processing device release")
         elif line[0] == 'D':
             print("processing display")
+            display_system(line)
         return
     else:
         print("line was invalid .... \"" + line + "\"")
@@ -181,7 +182,7 @@ def setup_system(line):
 def display_system(line):
     global total_system
     print("CURRENT STATUS OF SYSTEM")
-    pprint(total_system)
+    pprint.pprint(total_system)
 
 
 # Turn a line with letters/numbers/etc in to an array
