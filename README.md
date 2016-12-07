@@ -7,4 +7,4 @@ lots
 
 
 # To run
--> Scheduler.py "input.txt"
+-> Scheduler.py "test.txt"
