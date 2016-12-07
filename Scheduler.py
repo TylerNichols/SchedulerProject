@@ -22,19 +22,23 @@ class Queue:
     def get_items(self):
         return self.items
 
-    def get_shortest_job(self):
-        shortest = []
+    def pop_shortest_job(self):
+        shortest = None
+
         minruntime = 999999;
 
         if self.size() == 0:
             return
 
-        for job in self.items:
+        for job in self.items.reverse():
             if job.runTime < minruntime :
                 minruntime = job.runTime
                 shortest = job
 
+        self.items.remove(shortest)
+
         return shortest
+
 
 
 # Class to represent the system
@@ -212,7 +216,7 @@ def process_release(line):
 # processes updated IN PROGRESS
 def update_processes():
     global total_system
-    if (time % total_system.quantum) == 0:
+    if (time % (total_system.quantum + total_system.time)) == 0:
         # Should update job here
         print("quantum over, should update job to next job in queue")
 
@@ -220,6 +224,7 @@ def update_processes():
     if total_system.run is not None:
         currJob = total_system.run
         currJob.time = currJob.time - 1
+
         if currJob.time == 0:
             print("done job")
             total_system.run = None
