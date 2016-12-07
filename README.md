@@ -3,7 +3,7 @@ Project for CISC361
 
 
 # Todo
-lots
+dun
 
 
 # To run
