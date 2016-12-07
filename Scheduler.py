@@ -263,7 +263,7 @@ def process_request(line):
 
         # If we get None here, then we can't find the job. This is an error
         if tempjob is None:
-            print("Could not find job in ready queue or run state to request devices....")
+            print("Could not find job in ready queue or run state to request devices...." + str(args[1]))
             return
 
         # Since we found the job, we need to remove if from its position in the readyqueue
@@ -286,16 +286,16 @@ def process_request(line):
         total_system.readyqueue.enqueue(tempjob)
         total_system.availableDevices = total_system.availableDevices - args[2]
 
-    print("available devices after device request " + str(total_system.availableDevices))
+
 
     print("request processed")
 
 
 def release_all_devices(job):
     global total_system
-    print("before device release " + str(total_system.availableDevices))
+
     total_system.availableDevices = total_system.availableDevices + job.devicesInUse
-    print("after device release " + str(total_system.availableDevices))
+
 
 
 def release_all_memory(job):
@@ -436,6 +436,7 @@ def update_processes():
             total_system.run = None
             release_job(currJob)
             currJob.location = "Complete"
+            currJob.devicesInUse = 0
             total_system.completequeue.enqueue(currJob)
             return
 
@@ -457,7 +458,7 @@ def setup_system(line):
 
 def display_system(line):
     global total_system
-    jobstable = PrettyTable(['Job Number', 'State', 'Time Remaining', 'Turnaround Time', 'Weighted Turnaround Time'])
+    jobstable = PrettyTable(['Job Number', 'State', 'Devices in Use','Time Remaining', 'Turnaround Time', 'Weighted Turnaround Time'])
     newlist = []
 
     #gathers the jobs from every queue
@@ -483,11 +484,24 @@ def display_system(line):
     newlist.sort(key=lambda x: x.number)
     for item in newlist:
         if item is not None:
-            jobstable.add_row([item.number, item.location, item.remainingTime, item.turnaroundTime, item.weightedTime])
+            if item.location == "Wait Queue":
+                devices = "Waiting to use " + str(item.devicesInUse)
+            else:
+                devices = item.devicesInUse
+            jobstable.add_row([item.number, item.location, devices, item.remainingTime, item.turnaroundTime, item.weightedTime])
     print("------------------------------------------------------------------------------------------------------------------------------------------------")
     print("JOB STATUS")
    # print("------------------------------------------------------------------------------------------------------------------------------------------------")
     print(jobstable)
+    print()
+    print("SYSTEM STATUS")
+    systemstable = PrettyTable(['Available Memory', "Available Devices", "Running Job"])
+    systemjob = None
+    if total_system.run is not None:
+        systemjob = total_system.run.number
+    systemstable.add_row([str(total_system.availableMemory) + "/" + str(total_system.memory), str(total_system.availableDevices) + "/" + str(total_system.devices), systemjob])
+
+    print(systemstable)
     print()
     args = line_to_args(line)
     if (args[0] == 9999):
