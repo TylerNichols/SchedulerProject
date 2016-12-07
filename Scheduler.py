@@ -24,7 +24,7 @@ class Queue:
         # Get item and return it
         item = self.items.pop()
 
-        print("Dequeued job temp: " + str(item.number))
+        # print("Dequeued job temp: " + str(item.number))
 
         return item
 
@@ -42,12 +42,17 @@ class Queue:
     def pop_shortest_job(self):
         shortest = None
 
+        self.items = list(filter(None.__ne__, self.items))
+
+        # If list is length 0, return NoneType
+        if len(self.items) == 0:
+            return None
+
+        temp = self.items;
+
         minruntime = 999999;
 
-        if self.size() == 0:
-            return
-
-        for job in self.items.reverse():
+        for job in temp.reverse():
             if job.runTime < minruntime :
                 minruntime = job.runTime
                 shortest = job
@@ -55,6 +60,15 @@ class Queue:
         self.items.remove(shortest)
 
         return shortest
+
+    # get job from a job number if it exists,
+    # otherwise return none
+    def get_job_from_number(self, number):
+        jobFound = None
+        for job in self.items:
+            if job.number == number:
+                jobFound = job
+        return jobFound
 
 
 
@@ -103,6 +117,7 @@ class Job:
         self.memory = memory
         self.devices = devices
         self.runTime = runTime
+        self.devicesInUse = 0
 
 class Process:
     def __init__(self, job):
@@ -183,7 +198,7 @@ def tick_time(timediff):
     global time
     for _ in range(timediff):
         time += 1
-        print("ticking time " + str(time))
+        # print("ticking time " + str(time))
         update_processes()
         update_queues()
         # print(time)
@@ -211,15 +226,92 @@ def process_job_arrival(line):
         total_system.holdqueue2.enqueue(currentjob)
 
 
-# processes an arrived request IN PROGRESS
+# processes an arrived request
 def process_request(line):
     args = line_to_args(line)
 
+    tempjob = None
 
+    # If its the running job, we need to interrupt
+    if(total_system.run is not None and total_system.run.number == args[1]):
+        tempjob = total_system.run
+        total_system.run = None
+
+    # Otherwise, the job must be in the ready queue
+    else:
+        tempjob = total_system.readyqueue.get_job_from_number(args[1])
+
+        # If we get None here, then we can't find the job. This is an error
+        if tempjob is None:
+            print("Could not find job in ready queue or run state to request devices....")
+            return
+
+        # Since we found the job, we need to remove if from its position in the readyqueue
+        total_system.readyqueue.items.remove(tempjob)
+
+    if(tempjob.devicesInUse + args[2]) > tempjob.devices:
+        print("Job is attempting to request more devices than it should")
+        return
+
+    tempjob.devicesInUse = args[2]
+    # If there is not enough availableDevices, then we add the job to the back of the wait
+    if(args[2] > total_system.availableDevices):
+        total_system.waitqueue.enqueue(tempjob)
+        print("Moving to wait queue")
+
+    # Otherwise, we add the job to the ready queue
+    else:
+        total_system.readyqueue.enqueue(tempjob)
+        total_system.availableDevices = total_system.availableDevices - args[2]
+
+    print("available devices after device request " + str(total_system.availableDevices))
+
+    print("request processed")
+
+
+def release_all_devices(job):
+    global total_system
+    print("before device release " + str(total_system.availableDevices))
+    total_system.availableDevices = total_system.availableDevices + job.devicesInUse
+    print("after device release " + str(total_system.availableDevices))
+
+
+def release_all_memory(job):
+    global total_system
+    total_system.availableMemory = total_system.availableMemory + job.memory
+
+
+def move_from_wait_queue():
+    global total_system
+
+    temp = total_system.waitqueue.items
+
+    temp = list(filter(None.__ne__, temp))
+
+    temp.reverse()
+
+    if(len(temp) == 0):
+        return
+
+    print(len(temp))
+
+    for job in temp:
+        if job is not None:
+            if(job.devicesInUse <= total_system.availableDevices):
+                total_system.readyqueue.enqueue(job)
+                total_system.availableDevices = total_system.availableDevices - job.devicesInUse
+                total_system.waitqueue.items.remove(job)
+                print("moved job from wait queue")
+
+def release_job(job):
+    release_all_devices(job)
+    release_all_memory(job)
+    move_from_wait_queue()
 
 
 def process_release(line):
-    print("release processed")
+
+    move_from_wait_queue()
 
 
 # processes updated IN PROGRESS
@@ -229,28 +321,26 @@ def update_processes():
     # If quantum is over,
     if ((time - total_system.startTime) % (total_system.quantum)) == 0:
         # Should update job here
-        print("quantum over, should update job to next job in queue")
+        # print("quantum over, should update job to next job in queue")
 
         # if total_system.waitqueue:
         runJob = total_system.run
         total_system.run = None
         total_system.readyqueue.enqueue(runJob)
-        total_system.readyqueue.print_queue()
+        # total_system.readyqueue.print_queue()
         jobToRun = total_system.readyqueue.dequeue()
         total_system.run = jobToRun
-
-
-
 
     # update running process
     if total_system.run is not None:
         currJob = total_system.run
         currJob.runTime = currJob.runTime - 1
-        print("running job " + str(currJob.number) + " with " + str(currJob.runTime) + " work units left at time " + str(time))
+        # print("running job " + str(currJob.number) + " with " + str(currJob.runTime) + " work units left at time " + str(time))
 
         if currJob.runTime == 0:
             print("done job " + str(currJob.number) + " at time " + str(time))
             total_system.run = None
+            release_job(currJob)
             total_system.completequeue.enqueue(currJob)
             return
 
