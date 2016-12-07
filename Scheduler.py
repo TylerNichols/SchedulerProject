@@ -14,13 +14,30 @@ class Queue:
         self.items.insert(0, item)
 
     def dequeue(self):
-        return self.items.pop()
+        # Remove NoneTypes from list
+        self.items = list(filter(None.__ne__, self.items))
+
+        # If list is length 0, return NoneType
+        if len(self.items) == 0:
+            return None
+
+        # Get item and return it
+        item = self.items.pop()
+
+        print("Dequeued job temp: " + str(item.number))
+
+        return item
 
     def size(self):
         return len(self.items)
 
     def get_items(self):
         return self.items
+
+    def print_queue(self):
+        for item in self.items:
+            if item is not None:
+                print("items include job" + str(item.number))
 
     def pop_shortest_job(self):
         shortest = None
@@ -44,7 +61,7 @@ class Queue:
 # Class to represent the system
 class System:
     def __init__(self, time, memory, devices, quantum):
-        self.time = time
+        self.startTime = time
         self.memory = memory
         self.availableMemory = memory;
         self.devices = devices
@@ -57,21 +74,17 @@ class System:
         self.completequeue = Queue()
         self.run = None
 
-
     # make a job hold the Systems memory
     def hold_memory(self, job):
         self.availableMemory = self.availableMemory - job.memory
-
 
     # make a job release the Systems memory
     def release_memory(self, job):
         self.availableMemory = self.availableMemory + job.memory
 
-
     # hold devices from job device request
     def hold_devices(self, dvrq):
         self.availableDevices = self.availableDevices - dvrq
-
 
     # hold devices from job device release
     def release_devices(self, dvrl):
@@ -128,21 +141,16 @@ def process(line):
     parameters = ['C', 'A', 'Q', 'L', 'D']
     if line[0] in parameters:
         tick(line)
-        print("Processing line " + line)
+        #print("Processing line " + line)
         if line[0] == 'C' :
-            print("processing config")
             setup_system(line)
         if line[0] == 'A':
-            print("processing job arrival")
             process_job_arrival(line)
         elif line[0] == 'Q':
-            print("processing device request")
             process_request(line)
         elif line[0] == 'L':
-            print("processing device release")
             process_release(line)
         elif line[0] == 'D':
-            print("processing display")
             display_system(line)
         return
     else:
@@ -167,7 +175,7 @@ def tick_start_time(timediff):
     print("ticking till system start time...")
     for _ in range(timediff):
         time += 1
-        print( time)
+        # print(time)
 
 
 # ticks time equal to time difference
@@ -175,16 +183,17 @@ def tick_time(timediff):
     global time
     for _ in range(timediff):
         time += 1
+        print("ticking time " + str(time))
         update_processes()
         update_queues()
-        print(time)
+        # print(time)
 
 
 # processes an arrived job IN PROGRESS
 def process_job_arrival(line):
     global total_system
     args = line_to_args(line)
-    currentjob = Job(args[0], args[1], args[2], args[3], args[4], args[5])
+    currentjob = Job(args[1], args[5], args[0], args[2], args[3], args[4])
 
     # Do not process jobs if they require more memory or devices than the system has
     if (currentjob.devices > total_system.devices) or (currentjob.memory > total_system.memory):
@@ -192,7 +201,7 @@ def process_job_arrival(line):
 
     # if there is enough memory available to satisfy job req,
     # then we simply add the job to the ready queue
-    elif (currentjob.memory < total_system.availableMemory):
+    elif currentjob.memory < total_system.availableMemory:
         total_system.readyqueue.enqueue(currentjob)
 
     # put priority 1 jobs in queue 1, priority 2 in queue 2
@@ -201,12 +210,12 @@ def process_job_arrival(line):
     else:
         total_system.holdqueue2.enqueue(currentjob)
 
-    print("job processed")
-
 
 # processes an arrived request IN PROGRESS
 def process_request(line):
-    print("request processed")
+    args = line_to_args(line)
+
+
 
 
 def process_release(line):
@@ -216,31 +225,42 @@ def process_release(line):
 # processes updated IN PROGRESS
 def update_processes():
     global total_system
-    if (time % (total_system.quantum + total_system.time)) == 0:
+
+    # If quantum is over,
+    if ((time - total_system.startTime) % (total_system.quantum)) == 0:
         # Should update job here
         print("quantum over, should update job to next job in queue")
+
+        # if total_system.waitqueue:
+        runJob = total_system.run
+        total_system.run = None
+        total_system.readyqueue.enqueue(runJob)
+        total_system.readyqueue.print_queue()
+        jobToRun = total_system.readyqueue.dequeue()
+        total_system.run = jobToRun
+
+
+
 
     # update running process
     if total_system.run is not None:
         currJob = total_system.run
-        currJob.time = currJob.time - 1
+        currJob.runTime = currJob.runTime - 1
+        print("running job " + str(currJob.number) + " with " + str(currJob.runTime) + " work units left at time " + str(time))
 
-        if currJob.time == 0:
-            print("done job")
+        if currJob.runTime == 0:
+            print("done job " + str(currJob.number) + " at time " + str(time))
             total_system.run = None
             total_system.completequeue.enqueue(currJob)
             return
 
         total_system.run = currJob
 
-    print("processes updated")
-
 
 # checks queue IN PROGRESS
 # might be handled in update_processes
 def update_queues():
     global total_system
-    print("queues checked")
 
 
 # Setup system with specified args
@@ -248,13 +268,11 @@ def setup_system(line):
     global total_system
     args = line_to_args(line)
     total_system = System(args[0], args[1], args[2], args[3])
-    print("System has been set up")
 
 
 def display_system(line):
     global total_system
-    print("CURRENT STATUS OF SYSTEM")
-    pprint.pprint(total_system)
+    #pprint.pprint(total_system)
 
 
 # Turn a line with letters/numbers/etc in to an array
