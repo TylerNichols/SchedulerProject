@@ -13,6 +13,11 @@ class Queue:
     def enqueue(self, item):
         self.items.insert(0, item)
 
+    def get_first_item(self):
+        if len(self.items) == 0:
+            return None
+        return self.items[-1]
+
     def dequeue(self):
         # Remove NoneTypes from list
         self.items = list(filter(None.__ne__, self.items))
@@ -39,7 +44,7 @@ class Queue:
             if item is not None:
                 print("items include job" + str(item.number))
 
-    def pop_shortest_job(self):
+    def get_shortest_job(self):
         shortest = None
 
         self.items = list(filter(None.__ne__, self.items))
@@ -56,8 +61,6 @@ class Queue:
             if job.runTime < minruntime :
                 minruntime = job.runTime
                 shortest = job
-
-        self.items.remove(shortest)
 
         return shortest
 
@@ -216,8 +219,9 @@ def process_job_arrival(line):
 
     # if there is enough memory available to satisfy job req,
     # then we simply add the job to the ready queue
-    elif currentjob.memory < total_system.availableMemory:
+    elif currentjob.memory <= total_system.availableMemory:
         total_system.readyqueue.enqueue(currentjob)
+        total_system.availableMemory = total_system.availableMemory - currentjob.memory
 
     # put priority 1 jobs in queue 1, priority 2 in queue 2
     elif currentjob.priority == "1":
@@ -236,6 +240,7 @@ def process_request(line):
     if(total_system.run is not None and total_system.run.number == args[1]):
         tempjob = total_system.run
         total_system.run = None
+        print("interrupting job " + str(tempjob.number) + " " + str(tempjob.runTime))
 
     # Otherwise, the job must be in the ready queue
     else:
@@ -278,6 +283,7 @@ def release_all_devices(job):
 
 def release_all_memory(job):
     global total_system
+
     total_system.availableMemory = total_system.availableMemory + job.memory
 
 
@@ -303,13 +309,74 @@ def move_from_wait_queue():
                 total_system.waitqueue.items.remove(job)
                 print("moved job from wait queue")
 
+
+def move_from_hold_queues():
+    move_from_hold1()
+    move_from_hold2()
+
+
+def move_from_hold1():
+    global total_system
+
+    item = total_system.holdqueue1.get_shortest_job()
+
+    if item is None:
+        return
+
+    if (item.memory <= total_system.availableMemory):
+        total_system.readyqueue.enqueue(item)
+        total_system.holdqueue2.items.remove(item)
+        total_system.availableMemory = total_system.availableMemory - item.memory
+        print("MOVED job " + str(item.number) + " FROM HOLD 1")
+
+
+def move_from_hold2():
+    global total_system
+
+    item = total_system.holdqueue2.get_first_item()
+
+    if item is None:
+        return
+
+    if(item.memory <= total_system.availableMemory):
+        total_system.readyqueue.enqueue(item)
+        total_system.holdqueue2.items.remove(item)
+        total_system.availableMemory = total_system.availableMemory - item.memory
+        print("MOVED job " + str(item.number) + " FROM HOLD 2")
+
+
 def release_job(job):
     release_all_devices(job)
     release_all_memory(job)
     move_from_wait_queue()
+    move_from_hold_queues()
 
 
 def process_release(line):
+    args = line_to_args(line)
+
+    tempjob = None
+
+    # If its the running job, we need to interrupt
+    if (total_system.run is not None and total_system.run.number == args[1]):
+        tempjob = total_system.run
+        total_system.run = None
+
+    # Otherwise, the job must be in the ready queue
+    else:
+        tempjob = total_system.readyqueue.get_job_from_number(args[1])
+
+        # If we get None here, then we can't find the job. This is an error
+        if tempjob is None:
+            print("device release job was either completed or in hold queue")
+            return
+
+        # Since we found the job, we need to remove if from its position in the readyqueue
+        total_system.readyqueue.items.remove(tempjob)
+
+    print("releasing " + str(args[2]) + "devices")
+    total_system.availableDevices = total_system.availableDevices + args[2]
+    tempjob.devicesInUse = tempjob.devicesInUse - args[2]
 
     move_from_wait_queue()
 
