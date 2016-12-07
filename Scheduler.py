@@ -1,6 +1,9 @@
 import sys
 import pprint
 
+from prettytable import PrettyTable
+
+
 
 # Class to handle queues
 class Queue:
@@ -56,11 +59,12 @@ class Queue:
         temp = self.items;
 
         minruntime = 999999;
-
-        for job in temp.reverse():
-            if job.runTime < minruntime :
-                minruntime = job.runTime
-                shortest = job
+        temp.reverse()
+        for job in temp:
+            if job is not None:
+                if job.remainingTime < minruntime :
+                    minruntime = job.remainingTime
+                    shortest = job
 
         return shortest
 
@@ -90,6 +94,8 @@ class System:
         self.waitqueue = Queue()
         self.completequeue = Queue()
         self.run = None
+        self.turnaroundTime = None
+        self.weightedTime = None
 
     # make a job hold the Systems memory
     def hold_memory(self, job):
@@ -120,7 +126,11 @@ class Job:
         self.memory = memory
         self.devices = devices
         self.runTime = runTime
+        self.remainingTime = runTime
+        self.turnaroundTime = None
+        self.weightedTime = None
         self.devicesInUse = 0
+        self.location = "just arrived"
 
 class Process:
     def __init__(self, job):
@@ -219,14 +229,19 @@ def process_job_arrival(line):
 
     # if there is enough memory available to satisfy job req,
     # then we simply add the job to the ready queue
+
     elif currentjob.memory <= total_system.availableMemory:
+        currentjob.location = "Ready Queue"
         total_system.readyqueue.enqueue(currentjob)
         total_system.availableMemory = total_system.availableMemory - currentjob.memory
 
     # put priority 1 jobs in queue 1, priority 2 in queue 2
-    elif currentjob.priority == "1":
+    elif currentjob.priority == 1:
+        currentjob.location = "Hold Queue 1"
         total_system.holdqueue1.enqueue(currentjob)
     else:
+
+        currentjob.location = "Hold Queue 2"
         total_system.holdqueue2.enqueue(currentjob)
 
 
@@ -240,7 +255,7 @@ def process_request(line):
     if(total_system.run is not None and total_system.run.number == args[1]):
         tempjob = total_system.run
         total_system.run = None
-        print("interrupting job " + str(tempjob.number) + " " + str(tempjob.runTime))
+        print("interrupting job " + str(tempjob.number) + " " + str(tempjob.remainingTime))
 
     # Otherwise, the job must be in the ready queue
     else:
@@ -261,11 +276,13 @@ def process_request(line):
     tempjob.devicesInUse = args[2]
     # If there is not enough availableDevices, then we add the job to the back of the wait
     if(args[2] > total_system.availableDevices):
+        tempjob.location = "Wait Queue"
         total_system.waitqueue.enqueue(tempjob)
         print("Moving to wait queue")
 
     # Otherwise, we add the job to the ready queue
     else:
+        tempjob.location = "Ready Queue"
         total_system.readyqueue.enqueue(tempjob)
         total_system.availableDevices = total_system.availableDevices - args[2]
 
@@ -299,11 +316,12 @@ def move_from_wait_queue():
     if(len(temp) == 0):
         return
 
-    print(len(temp))
+
 
     for job in temp:
         if job is not None:
             if(job.devicesInUse <= total_system.availableDevices):
+                job.location = "Ready Queue"
                 total_system.readyqueue.enqueue(job)
                 total_system.availableDevices = total_system.availableDevices - job.devicesInUse
                 total_system.waitqueue.items.remove(job)
@@ -324,8 +342,9 @@ def move_from_hold1():
         return
 
     if (item.memory <= total_system.availableMemory):
+        item.location = "Ready Queue"
         total_system.readyqueue.enqueue(item)
-        total_system.holdqueue2.items.remove(item)
+        total_system.holdqueue1.items.remove(item)
         total_system.availableMemory = total_system.availableMemory - item.memory
         print("MOVED job " + str(item.number) + " FROM HOLD 1")
 
@@ -339,6 +358,7 @@ def move_from_hold2():
         return
 
     if(item.memory <= total_system.availableMemory):
+        item.location = "Ready Queue"
         total_system.readyqueue.enqueue(item)
         total_system.holdqueue2.items.remove(item)
         total_system.availableMemory = total_system.availableMemory - item.memory
@@ -393,21 +413,29 @@ def update_processes():
         # if total_system.waitqueue:
         runJob = total_system.run
         total_system.run = None
-        total_system.readyqueue.enqueue(runJob)
-        # total_system.readyqueue.print_queue()
+        if runJob is not None:
+            runJob.location = "Ready queue"
+            total_system.readyqueue.enqueue(runJob)
+
         jobToRun = total_system.readyqueue.dequeue()
         total_system.run = jobToRun
 
     # update running process
     if total_system.run is not None:
         currJob = total_system.run
-        currJob.runTime = currJob.runTime - 1
+        currJob.location = "CPU"
+        currJob.remainingTime = currJob.remainingTime - 1
         # print("running job " + str(currJob.number) + " with " + str(currJob.runTime) + " work units left at time " + str(time))
 
-        if currJob.runTime == 0:
+        if currJob.remainingTime == 0:
             print("done job " + str(currJob.number) + " at time " + str(time))
+            total_system.turnaroundTime = time
+
+            currJob.turnaroundTime = time
+            currJob.weightedTime = round(time/currJob.runTime, 3)
             total_system.run = None
             release_job(currJob)
+            currJob.location = "Complete"
             total_system.completequeue.enqueue(currJob)
             return
 
@@ -429,6 +457,48 @@ def setup_system(line):
 
 def display_system(line):
     global total_system
+    jobstable = PrettyTable(['Job Number', 'State', 'Time Remaining', 'Turnaround Time', 'Weighted Turnaround Time'])
+    newlist = []
+
+    #gathers the jobs from every queue
+    for item in total_system.completequeue.items:
+        if item is not None:
+            newlist.append(item)
+    for item in total_system.waitqueue.items:
+        if item is not None:
+            newlist.append(item)
+    for item in total_system.holdqueue2.items:
+        if item is not None:
+            newlist.append(item)
+    for item in total_system.holdqueue1.items:
+        if item is not None:
+            newlist.append(item)
+    for item in total_system.readyqueue.items:
+        if item is not None:
+            newlist.append(item)
+    if total_system.run is not None:
+        newlist.append(total_system.run)
+
+    #creates job table sorted by the job number
+    newlist.sort(key=lambda x: x.number)
+    for item in newlist:
+        if item is not None:
+            jobstable.add_row([item.number, item.location, item.remainingTime, item.turnaroundTime, item.weightedTime])
+    print("------------------------------------------------------------------------------------------------------------------------------------------------")
+    print("JOB STATUS")
+   # print("------------------------------------------------------------------------------------------------------------------------------------------------")
+    print(jobstable)
+    print()
+    args = line_to_args(line)
+    if (args[0] == 9999):
+        print("SYSTEM TABLE")
+        systemstable = PrettyTable(['System Turnaround Time', "System Weighted Turnaround Time"])
+        total_system.weightedTime = round(total_system.turnaroundTime / (total_system.turnaroundTime - total_system.startTime), 3)
+        systemstable.add_row([total_system.turnaroundTime, total_system.weightedTime])
+        print(systemstable)
+    print("------------------------------------------------------------------------------------------------------------------------------------------------")
+
+
     #pprint.pprint(total_system)
 
 
